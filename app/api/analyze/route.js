@@ -73,10 +73,49 @@ async function fetchTranscript(videoId) {
   }
   if (!pageResponse.ok) throw new Error('YouTube वीडियो की जानकारी नहीं मिल सकी।');
   const html = await pageResponse.text();
-  const player = extractPlayerResponse(html);
-  if (!player) throw new Error('YouTube captions की जानकारी नहीं पढ़ी जा सकी।');
-  const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-  if (!tracks.length) throw new Error('इस वीडियो के captions ऐप को उपलब्ध नहीं हुए।');
+  let player = extractPlayerResponse(html);
+  let tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+
+  // YouTube watch HTML sometimes omits caption metadata for server-side requests.
+  // Try YouTube's public WEB player endpoint as a fallback.
+  if (!tracks.length) {
+    try {
+      const playerResponse = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': 'https://www.youtube.com',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          videoId,
+          context: {
+            client: {
+              clientName: 'WEB',
+              clientVersion: '2.20261119.01.00',
+              hl: 'hi',
+              gl: 'IN'
+            }
+          }
+        }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(12000)
+      });
+      if (playerResponse.ok) {
+        const fallbackPlayer = await playerResponse.json();
+        const fallbackTracks = fallbackPlayer?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+        if (fallbackTracks.length) {
+          player = fallbackPlayer;
+          tracks = fallbackTracks;
+        }
+      }
+    } catch {
+      // Keep the original response and return a clear message below.
+    }
+  }
+
+  if (!player && !tracks.length) throw new Error('YouTube captions की जानकारी सर्वर को नहीं मिली।');
+  if (!tracks.length) throw new Error('YouTube ने इस वीडियो के captions सर्वर को उपलब्ध नहीं कराए। YouTube ऐप में Transcript दिखने पर भी सर्वर से access अलग हो सकता है।');
   const track = tracks.find(t => /^hi(-|$)/i.test(t.languageCode || ''))
     || tracks.find(t => /^en(-|$)/i.test(t.languageCode || ''))
     || tracks[0];
