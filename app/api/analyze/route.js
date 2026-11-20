@@ -25,7 +25,7 @@ export async function POST(req) {
     }
 
     const prompt = `आप हिंदी Shorts content planner हैं। नीचे दिए transcript का विश्लेषण करें। केवल transcript में मौजूद तथ्यों का उपयोग करें; कुछ गढ़ें नहीं। 3 से 5 अच्छे Shorts highlights दें। startTime और endTime केवल तभी दें जब transcript में स्पष्ट timestamp मौजूद हो; timestamp न हो तो दोनों खाली string रखें और कोई समय अनुमान से न बनाएं। हर highlight में heading, reason, 30-60 सेकंड की हिंदी बोलने योग्य script, caption और 3-6 hashtags दें। उत्तर केवल वैध JSON हो, इस schema में: {"highlights":[{"startTime":"","endTime":"","heading":"","reason":"","script":"","caption":"","hashtags":["#Hindi"]}],"note":"..."}\n\nTRANSCRIPT:\n${transcript}`;
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
