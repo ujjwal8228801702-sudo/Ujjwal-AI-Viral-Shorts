@@ -5,18 +5,18 @@ function decodeEntities(value = '') {
     .replace(/&#39;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&#(\\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
 function timeLabel(seconds) {
   const total = Math.max(0, Math.floor(seconds));
-  return `[${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}]`;
+  return \`[\${String(Math.floor(total / 60)).padStart(2, '0')}:\${String(total % 60).padStart(2, '0')}]\`;
 }
 
 function getVideoId(value) {
   let parsed;
   try { parsed = new URL(value); } catch { return null; }
-  const host = parsed.hostname.replace(/^www\\./, '').toLowerCase();
+  const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
   if (host === 'youtu.be') return parsed.pathname.split('/').filter(Boolean)[0] || null;
   if (['youtube.com', 'm.youtube.com', 'music.youtube.com'].includes(host)) {
     if (parsed.pathname === '/watch') return parsed.searchParams.get('v');
@@ -27,14 +27,14 @@ function getVideoId(value) {
 }
 
 async function fetchTranscript(videoId) {
-  const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+  const watchUrl = \`https://www.youtube.com/watch?v=\${encodeURIComponent(videoId)}\`;
   const pageResponse = await fetch(watchUrl, {
     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36' },
     cache: 'no-store'
   });
   if (!pageResponse.ok) throw new Error('YouTube वीडियो की जानकारी नहीं मिल सकी।');
   const html = await pageResponse.text();
-  const match = html.match(/ytInitialPlayerResponse\\s*=\\s*(\\{.+?\\})\\s*;/s);
+  const match = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;/s);
   if (!match) throw new Error('YouTube captions की जानकारी नहीं मिली। इस वीडियो के captions उपलब्ध न हों या YouTube ने access रोक रखा हो।');
   let player;
   try { player = JSON.parse(match[1]); } catch {
@@ -55,13 +55,13 @@ async function fetchTranscript(videoId) {
     const data = JSON.parse(raw);
     lines = (data.events || []).flatMap(event => {
       const text = (event.segs || []).map(seg => seg.utf8 || '').join('').trim();
-      return text ? [`${timeLabel((event.tStartMs || 0) / 1000)} ${text}`] : [];
+      return text ? [\`\${timeLabel((event.tStartMs || 0) / 1000)} \${text}\`] : [];
     });
   } catch {
-    lines = [...raw.matchAll(/<text[^>]*start="([^"]+)"[^>]*>([\\s\\S]*?)<\\/text>/g)]
-      .map(m => `${timeLabel(Number(m[1]))} ${decodeEntities(m[2].replace(/<[^>]+>/g, ' '))}`);
+    lines = [...raw.matchAll(/<text[^>]*start="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g)]
+      .map(m => \`\${timeLabel(Number(m[1]))} \${decodeEntities(m[2].replace(/<[^>]+>/g, ' '))}\`);
   }
-  const transcript = lines.join('\\n').trim();
+  const transcript = lines.join('\n').trim();
   if (transcript.length < 80) throw new Error('Captions बहुत कम मिले या पढ़े नहीं जा सके।');
   return { transcript: transcript.slice(0, 60000), language: track.languageCode || 'unknown' };
 }
@@ -89,7 +89,10 @@ export async function POST(req) {
       return Response.json({ error: error.message || 'इस वीडियो के captions अपने-आप नहीं मिल सके।' }, { status: 422 });
     }
 
-    const prompt = `आप हिंदी Shorts content planner हैं। नीचे दिए गए वास्तविक YouTube captions का विश्लेषण करें। केवल captions में मौजूद तथ्यों का उपयोग करें; कुछ गढ़ें नहीं। 3 से 5 सबसे engaging Shorts moments दें। startTime और endTime captions के timestamps के आधार पर चुनें; प्रत्येक clip लगभग 30-60 सेकंड का हो। हर highlight में heading, reason, 30-60 सेकंड की स्वाभाविक हिंदी Shorts script, caption और 3-6 hashtags दें। उत्तर केवल वैध JSON हो, इस schema में: {"highlights":[{"startTime":"00:00","endTime":"00:45","heading":"","reason":"","script":"","caption":"","hashtags":["#Hindi"]}],"note":""}\\n\\nCAPTIONS (language: ${captionData.language}):\\n${captionData.transcript}`;
+    const prompt = \`आप हिंदी Shorts content planner हैं। नीचे दिए गए वास्तविक YouTube captions का विश्लेषण करें। केवल captions में मौजूद तथ्यों का उपयोग करें; कुछ गढ़ें नहीं। 3 से 5 सबसे engaging Shorts moments दें। startTime और endTime captions के timestamps के आधार पर चुनें; प्रत्येक clip लगभग 30-60 सेकंड का हो। हर highlight में heading, reason, 30-60 सेकंड की स्वाभाविक हिंदी Shorts script, caption और 3-6 hashtags दें। उत्तर केवल वैध JSON हो, इस schema में: {"highlights":[{"startTime":"00:00","endTime":"00:45","heading":"","reason":"","script":"","caption":"","hashtags":["#Hindi"]}],"note":""}
+
+CAPTIONS (language: \${captionData.language}):
+\${captionData.transcript}\`;
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -115,7 +118,7 @@ export async function POST(req) {
       status: 'analyzed',
       title: 'आपके AI Shorts Highlights',
       highlights: parsed.highlights.slice(0, 5),
-      note: `Captions की भाषा: ${captionData.language}। ये timestamps सुझाव हैं; clip काटने से पहले जाँचें। वीडियो rendering और YouTube upload अभी उपलब्ध नहीं हैं।`
+      note: \`Captions की भाषा: \${captionData.language}। ये timestamps सुझाव हैं; clip काटने से पहले जाँचें। वीडियो rendering और YouTube upload अभी उपलब्ध नहीं हैं।\`
     });
   } catch (error) {
     return Response.json({ error: 'अनुरोध पढ़ने या विश्लेषण में समस्या हुई।' }, { status: 500 });
